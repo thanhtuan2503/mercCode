@@ -4,7 +4,6 @@
 #include "motor.h"
 #include <usbhub.h>
 
-
 // Satisfy the IDE, which needs to see the include statment in the ino too.
 #ifdef dobogusinclude
 #include <spi4teensy3.h>
@@ -36,12 +35,9 @@ const long interval = 4000;
 USB Usb;
 //USBHub Hub1(&Usb); // Some donglesBTD Btd(&Usb);
 BTD Btd(&Usb); // You have to create the Bluetooth Dongle instance like so
-/* You can create the instance of the PS4BT class in two ways */
-// This will start an inquiry and then pair with the PS4 controller - you only have to do this once
-// You will need to hold down the PS and Share button at the same time, the PS4 controller will then start to blink rapidly indicating that it is in pairing mode
+
 //PS4BT PS4(&Btd, PAIR); //Ket noi lan dau bang cach nhan nut share và nut PS.
 
-// After that you can simply create the instance like so and then press the PS button on the device
 PS4BT PS4(&Btd); //Thay lenh phia tren bang lenh nay sau khi ket noi thanh cong, nap lai code, lan sau chi can nhan nut PS de ket noi.
 //SoftwareSerial mySerial(10, 11);
 bool printAngle, printTouch;
@@ -60,16 +56,16 @@ int SqrStt = 0;
 
 
 void setup() {
-   Serial.begin(19200);
+  Serial.begin(19200);
+  motorSetup();
 #if !defined(__MIPSEL__)
-  while (!Serial); // Wait for serial port to connect - used on Leonardo, Teensy and other boards with built-in USB CDC serial connection
+  while (!Serial); 
 #endif
   if (Usb.Init() == -1) {
     Serial.print(F("\r\nOSC did not start"));
-    while (1); // Halt
+    while (1);
   }
     Serial.print(F("\r\nPS4 Bluetooth Library Started"));
-  // mySerial.println("{N1 V0 A2000 }");  //send to driver Add =2 (N2), Vị trí P=500 rad, Vận tốc V=40 rad/s và gia tốc A =2000 rad/s^2.  
 }
 void ButtonUp(){
   if(UpStt == 0){
@@ -84,7 +80,10 @@ void ButtonUp(){
         motor_Tien(2, 5); 
         motor_Tien(3, 5); 
         motor_Tien(4, 5); 
-        if((millis() - upSttTime) > 30) upSpeed++;
+        if((millis() - upSttTime) > 30){
+          upSpeed++;
+          upSttTime = millis();
+        } 
         upSttTime = millis();
     break;
     case 2:
@@ -92,24 +91,30 @@ void ButtonUp(){
         motor_Tien(2, 10); 
         motor_Tien(3, 10); 
         motor_Tien(4, 10); 
-        if((millis() - upSttTime) > 30) upSpeed++;
-        upSttTime = millis();
+        if((millis() - upSttTime) > 30){ 
+          upSpeed++;
+          upSttTime = millis();
+        }
     break;
     case 3:
         motor_Tien(1, 20); 
         motor_Tien(2, 20); 
         motor_Tien(3, 20); 
         motor_Tien(4, 20); 
-        if((millis() - upSttTime) > 30) upSpeed++;
-        upSttTime = millis();
+        if((millis() - upSttTime) > 30){
+          upSpeed++;
+          upSttTime = millis();
+        }
     break;
     case 4:
         motor_Tien(1, 40); 
         motor_Tien(2, 40); 
         motor_Tien(3, 40); 
         motor_Tien(4, 40); 
-        if((millis() - upSttTime) > 30) upSpeed++;
-        upSttTime = millis();
+        if((millis() - upSttTime) > 30){
+          upSpeed++;
+          upSttTime = millis();
+        }
     break;
     case 5:
         motor_Tien(1, 80); 
@@ -135,32 +140,40 @@ void ButtonDown(){
         motor_Lui(2, 5); 
         motor_Lui(3, 5); 
         motor_Lui(4, 5); 
-        if((millis() - downSttTime) > 30) downSpeed++;
-        downSttTime = millis();
+        if((millis() - downSttTime) > 30){
+          downSpeed++;
+          downSttTime = millis();
+        }
     break;
     case 2:
         motor_Lui(1, 10); 
         motor_Lui(2, 10); 
         motor_Lui(3, 10); 
         motor_Lui(4, 10); 
-        if((millis() - downSttTime) > 30) downSpeed++;
-        downSttTime = millis();
+        if((millis() - downSttTime) > 30){
+          downSpeed++;
+          downSttTime = millis();
+        }
     break;
     case 3:
         motor_Lui(1, 20); 
         motor_Lui(2, 20); 
         motor_Lui(3, 20); 
         motor_Lui(4, 20); 
-        if((millis() - downSttTime) > 30) downSpeed++;
-        downSttTime = millis();
+        if((millis() - downSttTime) > 30){
+          downSpeed++;
+          downSttTime = millis();
+        }
     break;
     case 4:
         motor_Lui(1, 40); 
         motor_Lui(2, 40); 
         motor_Lui(3, 40); 
         motor_Lui(4, 40); 
-        if((millis() - downSttTime) > 30) downSpeed++;
-        downSttTime = millis();
+        if((millis() - downSttTime) > 30){
+          downSpeed++;
+          downSttTime = millis();
+        }
     break;
     case 5:
         motor_Lui(1, 80); 
@@ -185,32 +198,40 @@ void ButtonRight(){
         motor_Tien(2, 5); 
         motor_Tien(3, 5); 
         motor_Lui(4, 5); 
-        if((millis() - rightSttTime) > 30) rightSpeed++;
-        rightSttTime = millis();
+        if((millis() - rightSttTime) > 30){
+          rightSpeed++;
+          rightSttTime = millis();
+        }
     break;
     case 2:
         motor_Lui(1, 10); 
         motor_Tien(2, 10); 
         motor_Tien(3, 10); 
         motor_Lui(4, 10); 
-        if((millis() - rightSttTime) > 30) rightSpeed++;
+        if((millis() - rightSttTime) > 30){
+          rightSpeed++;
         rightSttTime = millis();
+        }
     break;
     case 3:
         motor_Lui(1, 20); 
         motor_Tien(2, 20); 
         motor_Tien(3, 20); 
         motor_Lui(4, 20); 
-        if((millis() - rightSttTime) > 30) rightSpeed++;
-        rightSttTime = millis();
+        if((millis() - rightSttTime) > 30){
+          rightSpeed++;
+          rightSttTime = millis();
+        }
     break;
     case 4:
         motor_Lui(1, 40); 
         motor_Tien(2, 40); 
         motor_Tien(3, 40); 
         motor_Lui(4, 40); 
-        if((millis() - rightSttTime) > 30) rightSpeed++;
-        rightSttTime = millis();
+        if((millis() - rightSttTime) > 30){
+          rightSpeed++;
+          rightSttTime = millis();
+        }
     break;
     case 5:
         motor_Lui(1, 80); 
@@ -236,32 +257,40 @@ void ButtonLeft(){
         motor_Lui(2, 5); 
         motor_Lui(3, 5); 
         motor_Tien(4, 5); 
-        if((millis() - leftSttTime) > 30) leftSpeed++;
-        leftSttTime = millis();
+        if((millis() - leftSttTime) > 30){
+          leftSpeed++;
+          leftSttTime = millis();
+        }
     break;
     case 2:
         motor_Tien(1, 10); 
         motor_Lui(2, 10); 
         motor_Lui(3, 10); 
         motor_Tien(4, 10); 
-        if((millis() - leftSttTime) > 30) leftSpeed++;
-        leftSttTime = millis();
+        if((millis() - leftSttTime) > 30){
+          leftSpeed++;
+          leftSttTime = millis();
+        }
     break;
     case 3:
         motor_Tien(1, 20); 
         motor_Lui(2, 20); 
         motor_Lui(3, 20); 
         motor_Tien(4, 20); 
-        if((millis() - leftSttTime) > 30) leftSpeed++;
-        leftSttTime = millis();
+        if((millis() - leftSttTime) > 30){
+          leftSpeed++;
+          leftSttTime = millis();
+        }
     break;
      case 4:
         motor_Tien(1, 40); 
         motor_Lui(2, 40); 
         motor_Lui(3, 40); 
         motor_Tien(4, 40); 
-        if((millis() - leftSttTime) > 30) leftSpeed++;
-        leftSttTime = millis();
+        if((millis() - leftSttTime) > 30){
+          leftSpeed++;
+          leftSttTime = millis();
+        }
     break;
     case 5:
         motor_Tien(1, 80); 
@@ -287,32 +316,40 @@ void TriangleButton(){    //xoay phải
         motor_Lui(2, 5); 
         motor_Tien(3, 5); 
         motor_Lui(4, 5); 
-        if((millis() - triSttTime) > 30) triSpeed++;
-        triSttTime = millis();
+        if((millis() - triSttTime) > 30){
+          triSpeed++;
+          triSttTime = millis();
+        }
     break;
     case 2:
         motor_Tien(1, 10); 
         motor_Lui(2, 10); 
         motor_Tien(3, 10); 
         motor_Lui(4, 10); 
-        if((millis() - triSttTime) > 30) triSpeed++;
-        triSttTime = millis();
+        if((millis() - triSttTime) > 30){
+          triSpeed++;
+          triSttTime = millis();
+        }
     break;
     case 3:
         motor_Tien(1, 20); 
         motor_Lui(2, 20); 
         motor_Tien(3, 20); 
         motor_Lui(4, 20); 
-        if((millis() - triSttTime) > 30) triSpeed++;
-        triSttTime = millis();
+        if((millis() - triSttTime) > 30){
+          triSpeed++;
+          triSttTime = millis();
+        }
     break;
     case 4:
         motor_Tien(1, 40); 
         motor_Lui(2, 40); 
         motor_Tien(3, 40); 
         motor_Lui(4, 40); 
-        if((millis() - triSttTime) > 30) triSpeed++;
-        triSttTime = millis();
+        if((millis() - triSttTime) > 30){
+          triSpeed++;
+          triSttTime = millis();
+        }
     break;
     case 5:
         motor_Tien(1, 80); 
@@ -338,32 +375,40 @@ void CircleButton(){    //xoay trái
         motor_Tien(2, 5); 
         motor_Lui(3, 5); 
         motor_Tien(4, 5); 
-        if((millis() - cirSttTime) > 30) cirSpeed++;
-        cirSttTime = millis();
+        if((millis() - cirSttTime) > 30){
+          cirSpeed++;
+          cirSttTime = millis();
+        }
     break;
     case 2:
         motor_Lui(1, 10); 
         motor_Tien(2, 10); 
         motor_Lui(3, 10); 
         motor_Tien(4, 10); 
-        if((millis() - cirSttTime) > 30) cirSpeed++;
-        cirSttTime = millis();
+        if((millis() - cirSttTime) > 30){
+          cirSpeed++;
+          cirSttTime = millis();
+        }
     break;
     case 3:
         motor_Lui(1, 20); 
         motor_Tien(2, 20); 
         motor_Lui(3, 20); 
         motor_Tien(4, 20); 
-        if((millis() - cirSttTime) > 30) cirSpeed++;
-        cirSttTime = millis();
+        if((millis() - cirSttTime) > 30){
+          cirSpeed++;
+          cirSttTime = millis();
+        }
     break;
      case 4:
         motor_Lui(1, 40); 
         motor_Tien(2, 40); 
         motor_Lui(3, 40); 
         motor_Tien(4, 40); 
-        if((millis() - cirSttTime) > 30) cirSpeed++;
-        cirSttTime = millis();
+        if((millis() - cirSttTime) > 30){
+          cirSpeed++;
+          cirSttTime = millis();
+        }
     break;
     case 5:
         motor_Lui(1, 80); 

@@ -1,3 +1,5 @@
+#ifndef MOTOR_H
+#define MOTOR_H
 #define IN1_1 2
 #define IN2_1 3
 #define IN3_1 4
@@ -14,3 +16,4 @@ void motorSetup();
 void motor_Tien(int n, int speed);
 void motor_Lui(int n, int speed);
 void motor_Dung(int n);
+#endif
