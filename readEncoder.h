@@ -1,7 +1,3 @@
-#include <PinChangeInterrupt.h>
-#include <PinChangeInterruptBoards.h>
-#include <PinChangeInterruptPins.h>
-#include <PinChangeInterruptSettings.h>
 
 #ifndef READENCODER_H
 #define READENCODER_H
