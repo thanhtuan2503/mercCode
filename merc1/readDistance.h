@@ -5,7 +5,7 @@
 Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 int disVar = 0;
 unsigned long readTime = 0;
-void readEncoderInit();
+void readDistanceInit();
 void exportDistance(int* n);
 
 #endif

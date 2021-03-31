@@ -1,8 +1,10 @@
 #ifndef ROTATE_H
 #define ROTATE_H
+#include "Arduino.h"
 #include "motor.h"
 #include "PIDver1.h"
 #include "readEncoder.h"
+#include "readDistance.h"
 double mySetp = 0;
 #define myKp  10
 #define myKi  0

@@ -1,20 +1,20 @@
 #include "readDistance.h"
-void readEncoderInit(){
+void readDistanceInit(){
     readTime = millis();
     if (!lox.begin()) {
         disVar = 1;
     }
 }
 
-void exportEncoder(int* n){
+void exportDistance(double& n){
     VL53L0X_RangingMeasurementData_t measure;
     if((millis() - readTime)<= 50){
     lox.rangingTest(&measure, false);
 
         if (measure.RangeStatus != 4) {
-            *n = measure.RangeMilliMeter;
+            n = measure.RangeMilliMeter;
         } else {
-            *n = 1000;
+            n = 1000;
         }
     }   
     else    readTime = millis();
