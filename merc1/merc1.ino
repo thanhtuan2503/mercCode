@@ -1,29 +1,45 @@
-  
-#include <SoftwareSerial.h>
+//library workspace:
+#include <SoftwareSerial.h> //UART lib
+//USB host shield lib
 #include <PS4BT.h>
-#include "motor.h"
-//#include "readEncoder.h"
 #include <usbhub.h>
 
-// Satisfy the IDE, which needs to see the include statment in the ino too.
 #ifdef dobogusinclude
 #include <spi4teensy3.h>
 #endif
+//Distance sensor lib
 #include <SPI.h>
 
+//Interrupt lib
 #include <PinChangeInterrupt.h>
 #include <PinChangeInterruptBoards.h>
 #include <PinChangeInterruptPins.h>
 #include <PinChangeInterruptSettings.h>
-#define encodPinA1      18                             
-#define encodPinB1      19
-                      
+
+//motor control lib
+#include "motor.h"
+
+//include and setup pid
+#include "PIDver1.h"
+double mySetp = 0;
+#define myKp  1000000000
+#define myKi  0
+#define myKd  0
+#define myOutMax  120
+#define myOutMin  -120
+#define myTime 0.03
+PID myPID(myKp, myKi, myKd, myTime, myOutMax, myOutMin,1);
+
+#define encodPinA1      20                             
+#define encodPinB1      21  
+#define lightPin        A8     
+
+//variable for position of encoder
 volatile long encoderPos = 0;
 volatile long encoderPosR = 0;
 volatile long encoderPosL = 0;
 volatile long encoderPosA = 0;
 
-unsigned long previousMillis = 0;  
 //variable for button timer:
 unsigned long upSttTime = 0;
 unsigned long downSttTime = 0;
@@ -33,8 +49,8 @@ unsigned long cirSttTime = 0;
 unsigned long crossSttTime = 0;
 unsigned long triSttTime = 0;
 unsigned long sqrSttTime = 0;
-//
-//Mode of speedrun:
+
+//Variable mode of speedrun:
 int upSpeed = 1;
 int downSpeed = 1;
 int leftSpeed = 1;
@@ -43,17 +59,21 @@ int cirSpeed = 1;
 int crossSpeed = 1;
 int triSpeed = 1;
 int sqrSpeed = 1;
-//
-const long interval = 4000;
 
+//Variable for pid status and timer
+unsigned long rTime = 0;
+unsigned long lTime = 0;
+unsigned long aTime = 0;
+unsigned long pidTime = 0;
+unsigned long runTime = 0;
+
+//USB initialization
 USB Usb;
-//USBHub Hub1(&Usb); // Some donglesBTD Btd(&Usb);
-BTD Btd(&Usb); // You have to create the Bluetooth Dongle instance like so
-
+BTD Btd(&Usb); 
 //PS4BT PS4(&Btd, PAIR); //Ket noi lan dau bang cach nhan nut share và nut PS.
-
 PS4BT PS4(&Btd); //Thay lenh phia tren bang lenh nay sau khi ket noi thanh cong, nap lai code, lan sau chi can nhan nut PS de ket noi.
-//SoftwareSerial mySerial(10, 11);
+
+//variable of button status
 bool printAngle, printTouch;
 uint8_t oldL2Value, oldR2Value;
 int tuan;
@@ -68,12 +88,28 @@ int CirStt = 0;
 int CrStt = 0;
 int SqrStt = 0;
 
+//init all the button code
+void CircleButton(int &cirSpeed, unsigned long &cirSttTime, int &CirpStt);
+void TriangleButton(int &triSpeed, unsigned long &triSttTime, int &TriStt);
+void ButtonRight(int &rightSpeed, unsigned long &rightSttTime, int &RightStt);
+void ButtonLeft(int &leftSpeed, unsigned long &leftSttTime, int &LeftStt);
+void ButtonDown(int &downSpeed, unsigned long &downSttTime, int &DownStt);
+void ButtonUp(int &upSpeed, unsigned long &upSttTime, int &UpStt);
+
+//setup for all code in main
 void setup() {
   Serial.begin(19200);
+  pinMode(lightPin,   INPUT);
   pinMode(encodPinA1, INPUT_PULLUP);
   pinMode(encodPinB1, INPUT_PULLUP);
   attachInterrupt(3, encoder, FALLING);
   motorSetup();
+  //Reset motor
+  motor_Dung(1);
+  motor_Dung(2);
+  motor_Dung(3);
+  motor_Dung(4);
+  
 #if !defined(__MIPSEL__)
   while (!Serial); 
 #endif
@@ -82,9 +118,45 @@ void setup() {
     while (1);
   }
     Serial.print(F("\r\nPS4 Bluetooth Library Started"));
+  while((analogRead(lightPin) < 500));
 }
-//Handling Button Circle******************************
-void CircleButton(int &cirSpeed, unsigned long &cirSttTime, int &CirpStt){    //xoay trái
+
+      
+void loop() {
+  Serial.println(encoderPos);
+  Usb.Task();
+  if(PS4.connected()) {
+    if(     !(PS4.getButtonPress(UP)||PS4.getButtonPress(DOWN)||
+            PS4.getButtonPress(RIGHT)||PS4.getButtonPress(LEFT)||
+            PS4.getButtonPress(TRIANGLE)||PS4.getButtonPress(CIRCLE))){ 
+                  motor_Dung(1);
+                  motor_Dung(2);
+                  motor_Dung(3);
+                  motor_Dung(4);
+                  UpStt = 0;
+                  DownStt = 0;
+                  RightStt = 0;
+                  LeftStt = 0;
+                  TriStt = 0;
+                  CirStt = 0;
+                  goto ending;
+               }
+          if(PS4.getButtonPress(UP)) {ButtonUp(upSpeed, upSttTime, UpStt); goto ending; }
+          if (PS4.getButtonPress(DOWN)){ButtonDown(downSpeed, downSttTime, DownStt); goto ending; } 
+          if(PS4.getButtonPress(RIGHT)){ ButtonRight(rightSpeed, rightSttTime, RightStt); goto ending;}
+          if(PS4.getButtonPress(CIRCLE)){ CircleButton(cirSpeed, cirSttTime, CirStt); goto ending;}
+          if(PS4.getButtonPress(LEFT)){ ButtonLeft(leftSpeed, leftSttTime, LeftStt); goto ending;}  
+          if(PS4.getButtonPress(TRIANGLE)){ TriangleButton(triSpeed, triSttTime, TriStt); goto ending;}
+  }
+
+  ending:
+      if (PS4.getButtonClick(L1)){
+        Serial.print(F("\r\nL1"));        
+            }
+}
+
+//Handling Button Circle - rotate left of the robot 
+void CircleButton(int &cirSpeed, unsigned long &cirSttTime, int &CirpStt){
   if(CirStt == 0){
     Serial.println(F("\r\LEFT ROTATE"));
     cirSpeed = 1; 
@@ -92,10 +164,6 @@ void CircleButton(int &cirSpeed, unsigned long &cirSttTime, int &CirpStt){    //
     cirSttTime = millis();
 
   }
-//        motor_Tien(1, 160); 
-//        motor_Tien(2, 160); 
-//        motor_Tien(3, 160); 
-//        motor_Tien(4, 160); 
   switch(cirSpeed){
     case 1:
         motor_Tien(1, 5); 
@@ -155,10 +223,8 @@ void CircleButton(int &cirSpeed, unsigned long &cirSttTime, int &CirpStt){    //
     break;
   }
 }
-
-//Handling Button Down******************************
-
-void TriangleButton(int &triSpeed, unsigned long &triSttTime, int &TriStt){    //xoay phải
+//Handling Button Triangle - Rotate Right of the robot
+void TriangleButton(int &triSpeed, unsigned long &triSttTime, int &TriStt){    
   if(TriStt == 0){
     Serial.println(F("\r\RIGHT ROTATE"));
     triSpeed = 1; 
@@ -224,8 +290,7 @@ void TriangleButton(int &triSpeed, unsigned long &triSttTime, int &TriStt){    /
     break;
   }
 }
-
-//Handling Button Right******************************
+//Handling Button Right - goto the right
 void ButtonRight(int &rightSpeed, unsigned long &rightSttTime, int &RightStt){
   if(RightStt == 0){
     Serial.println(F("\r\RIGHT"));
@@ -292,9 +357,7 @@ void ButtonRight(int &rightSpeed, unsigned long &rightSttTime, int &RightStt){
     break;
   }
 }
-
-//Handling Button Left******************************
-
+//Handling Button Left - goto the left
 void ButtonLeft(int &leftSpeed, unsigned long &leftSttTime, int &LeftStt){
   if(LeftStt == 0){
     Serial.println(F("\r\LEFT"));
@@ -362,8 +425,7 @@ void ButtonLeft(int &leftSpeed, unsigned long &leftSttTime, int &LeftStt){
     
   }
 }
-
-//Handling Button Triangle******************************
+//Handling Button Down = go down of the robot
 void ButtonDown(int &downSpeed, unsigned long &downSttTime, int &DownStt){
   if(DownStt == 0){
     Serial.println(F("\r\DOWN"));
@@ -429,10 +491,9 @@ void ButtonDown(int &downSpeed, unsigned long &downSttTime, int &DownStt){
         motor_Tien(3, 160); 
         motor_Tien(4, 160); 
     break;
-  } 
-      
-      
+  }    
 }
+//Handling Button Up = go up of the robot
 void ButtonUp(int &upSpeed, unsigned long &upSttTime, int &UpStt){
   if(UpStt == 0){
     Serial.println(F("\r\nUP"));
@@ -500,246 +561,207 @@ void ButtonUp(int &upSpeed, unsigned long &upSttTime, int &UpStt){
   }        
 
 }
-      
-/*
-//Handling Button Cross******************************
-void CrossButton(){
-        if (PS4.getButtonPress(CROSS)) {
-        while ( CrStt != 1){
-          Serial.print(F("\r\nCross"));
-          send_data_uart(1,1,254);//dir 1
-          send_data_uart(1,2,0);
-          send_data_uart(1,4,0);
-          send_data_uart(1,8,0);
-          CrStt = 1;
-        }
-      }
-      else {
-        while ( CrStt != 0){
-            send_data_uart(0,1,0);
-            send_data_uart(0,2,0);
-            send_data_uart(0,4,0);
-            send_data_uart(0,8,0);
-         CrStt = 0;
-        }
-      }  
-}
-//Handling Button Square******************************
-void SquareButton(){
-  
-      if (PS4.getButtonPress(SQUARE)) {
-        while ( SqrStt != 1){
-          Serial.print(F("\r\nSquare"));
-          send_data_uart(1,1,0);
-          send_data_uart(1,2,0);
-          send_data_uart(1,4,0);
-          send_data_uart(1,8,254);//dir 1
-          SqrStt = 1;   
-        }
-      }
-      else{
-        while ( SqrStt != 0){
-         
-            send_data_uart(0,1,0);
-            send_data_uart(0,2,0);
-            send_data_uart(0,4,0);
-            send_data_uart(0,8,0);
-          SqrStt = 0;
-        }   
-      }
-}
-//Handling Button L2******************************
-void L2Button(){
-       if (PS4.getButtonPress(L2)) {
-        while ( L2Stt != 1){      
-          send_data_uart(1,1,125);//dir 1
-          send_data_uart(1,2,125);//1
-          send_data_uart(1,4,125);//1
-          send_data_uart(1,8,125);//1
-          L2Stt = 1;
-        }
-      }
-      else {
-        while( L2Stt != 0){
-          
-            send_data_uart(0,1,0);
-            send_data_uart(0,2,0);
-            send_data_uart(0,4,0);
-            send_data_uart(0,8,0);
-          L2Stt = 0;
-        }
-      }
-}
-//Handling Button R2******************************
-void R2Button(){
-        if (PS4.getButtonPress(R2)) {
-        while ( R2Stt != 1){      
-         send_data_uart(0,1,125);//dir 0
-          send_data_uart(0,2,125);//0
-          send_data_uart(0,4,125);//0
-          send_data_uart(0,8,125);//0
-          R2Stt = 1;
-        }
-      }
-      else {
-        while( R2Stt != 0){
-  
-            send_data_uart(0,1,0);
-            send_data_uart(0,2,0);
-            send_data_uart(0,4,0);
-            send_data_uart(0,8,0);
-          R2Stt = 0;
-        }
-      }
-}*/
-void loop() {
-  Serial.println(encoderPos);
-  Usb.Task();
-//  unsigned long currentMillis = millis();
-  if(PS4.connected()) {
-    if(PS4.getButtonPress(UP)||PS4.getButtonPress(DOWN)||PS4.getButtonPress(RIGHT)||PS4.getButtonPress(LEFT)||PS4.getButtonPress(TRIANGLE)||PS4.getButtonPress(CIRCLE)) ;
-      else { 
-                  motor_Dung(1);
-                  motor_Dung(2);
-                  motor_Dung(3);
-                  motor_Dung(4);
-                  UpStt = 0;
-                  DownStt = 0;
-                  RightStt = 0;
-                  LeftStt = 0;
-                  TriStt = 0;
-                  CirStt = 0;
-                  goto ending;
-               }
-          if(PS4.getButtonPress(UP)) {
-            ButtonUp(upSpeed, upSttTime, UpStt); 
-            goto ending;
-           }
-          if (PS4.getButtonPress(DOWN)){ButtonDown(downSpeed, downSttTime, DownStt); goto ending; } 
-          if(PS4.getButtonPress(RIGHT)){ ButtonRight(rightSpeed, rightSttTime, RightStt); goto ending;}
-          if(PS4.getButtonPress(CIRCLE)){ CircleButton(cirSpeed, cirSttTime, CirStt); goto ending;}
-          if(PS4.getButtonPress(LEFT)){ ButtonLeft(leftSpeed, leftSttTime, LeftStt); goto ending;}  
-          if(PS4.getButtonPress(TRIANGLE)){ TriangleButton(triSpeed, triSttTime, TriStt); goto ending;}
-  }
-// if (mySerial.available()) {
-//    Serial.write(mySerial.read());
-   // Serial.write("hello");
-  //}
-//    
-//    if (PS4.getAnalogHat(LeftHatX) > 137 || PS4.getAnalogHat(LeftHatX) < 117 || PS4.getAnalogHat(LeftHatY) > 137 || PS4.getAnalogHat(LeftHatY) < 117 || PS4.getAnalogHat(RightHatX) > 137 || PS4.getAnalogHat(RightHatX) < 117 || PS4.getAnalogHat(RightHatY) > 137 || PS4.getAnalogHat(RightHatY) < 117) {
-//      Serial.print(F("\r\nLeftHatX: "));
-//      Serial.print(PS4.getAnalogHat(LeftHatX));
-//      Serial.print(F("\tLeftHatY: "));
-//      Serial.print(PS4.getAnalogHat(LeftHatY));
-//      Serial.print(F("\tRightHatX: "));
-//      Serial.print(PS4.getAnalogHat(RightHatX));
-//      Serial.print(F("\tRightHatY: "));
-//      Serial.print(PS4.getAnalogHat(RightHatY));
-//    }
-//
-//    if (PS4.getAnalogButton(L2) || PS4.getAnalogButton(R2)) { // These are the only analog buttons on the PS4 controller
-//      Serial.print(F("\r\nL2: "));
-//      Serial.print(PS4.getAnalogButton(L2));
-//      Serial.print(F("\tR2: "));
-//      Serial.print(PS4.getAnalogButton(R2));
-//    }
-//    //Handling Analog Button*****************************************************
-//   // L2Button();
-//   // R2Button(); 
-//    //***************************************************************************
-//
-//    if (PS4.getButtonClick(PS)) {
-//      Serial.print(F("\r\nPS"));
-//      PS4.disconnect();
-//    }
-//    else {
-//
-//    // Directional Button******************************
-//    
-//    if(PS4.getButtonPress(UP)) {ButtonUp(); goto ending;}
-//    if (PS4.getButtonPress(DOWN)){ButtonDown(); goto ending; } 
-//    if(PS4.getButtonPress(RIGHT)){ ButtonRight(); goto ending;}
-//    if(PS4.getButtonPress(CIRCLE)){ CircleButton(); goto ending;}
-//    if(PS4.getButtonPress(LEFT)){ ButtonLeft(); goto ending;}  
-//    if(PS4.getButtonPress(TRIANGLE)){ TriangleButton(); goto ending;}
-//                
-//            
-//    
-//   
-//    
-//
-//    //Cubes Button******************************
-//   /* TriangleButton();
-//    CircleButton();
-//    CrossButton();
-//    SquareButton();*/
-////***********************************************************************
-  ending:
-    // Serial.println("Ending now!!");
 
-      if (PS4.getButtonClick(L1)){
-        Serial.print(F("\r\nL1"));         
+void upAuto(){
+  mySetp = 1500;
+  pidTime = millis();
+  runTime = millis();
+  double pidSpeed = 0;
+  encoderPos = 0;
+  while ((millis() - runTime) < 20000)
+   {
+      if(pidSpeed > 0){
+        motor_Lui(1, pidSpeed);
+        motor_Lui(2, pidSpeed);
+        motor_Tien(3, pidSpeed);
+        motor_Tien(4, pidSpeed);
+      }
+      else {
+        motor_Tien(1, abs(pidSpeed));
+        motor_Tien(2, abs(pidSpeed));
+        motor_Lui(3, abs(pidSpeed));
+        motor_Lui(4, abs(pidSpeed));
+      }
+       if((millis() - pidTime) > 30){
+          pidSpeed = myPID.Calculate(mySetp, encoderPos);
+          pidTime = millis();
+       }  
+   }   
+}
 
-            }
-//      if (PS4.getButtonClick(L3)){
-//        Serial.print(F("\r\nL3"));
-//      }
-//      if (PS4.getButtonClick(R1)){
-//        Serial.print(F("\r\nR1"));
-//         
-//
-//          }
-//      if (PS4.getButtonClick(R3)){
-//        Serial.print(F("\r\nR3"));
-//      }
-//      if (PS4.getButtonClick(SHARE)){
-//        Serial.print(F("\r\nShare"));
-//      }
-//      if (PS4.getButtonClick(OPTIONS)) {
-//        Serial.print(F("\r\nOptions"));
-//        printAngle = !printAngle;
-//      }
-//      if (PS4.getButtonClick(TOUCHPAD)) {
-//        Serial.print(F("\r\nTouchpad"));
-//        printTouch = !printTouch;
-//      }
-//
-//      if (printAngle) { // Print angle calculated using the accelerometer only
-//        Serial.print(F("\r\nPitch: "));
-//        Serial.print(PS4.getAngle(Pitch));
-//        Serial.print(F("\tRoll: "));
-//        Serial.print(PS4.getAngle(Roll));
-//      }
-//
-//      if (printTouch) { // Print the x, y coordinates of the touchpad
-//        if (PS4.isTouching(0) || PS4.isTouching(1)) // Print newline and carriage return if any of the fingers are touching the touchpad
-//          Serial.print(F("\r\n"));
-//        for (uint8_t i = 0; i < 2; i++) { // The touchpad track two fingers
-//          if (PS4.isTouching(i)) { // Print the position of the finger if it is touching the touchpad
-//            Serial.print(F("X")); Serial.print(i + 1); Serial.print(F(": "));
-//            Serial.print(PS4.getX(i));
-//            Serial.print(F("\tY")); Serial.print(i + 1); Serial.print(F(": "));
-//            Serial.print(PS4.getY(i));
-//            Serial.print(F("\t"));
-//            
-//          }
-//        }
-//      }
-//    }
-//   }
+void downAuto(){
+  mySetp = -1500;
+  pidTime = millis();
+  runTime = millis();
+  double pidSpeed = 0;
+  encoderPos = 0;
+  while ((millis() - runTime) < 20000)
+   {
+      if(pidSpeed > 0){
+        motor_Lui(1, pidSpeed);
+        motor_Lui(2, pidSpeed);
+        motor_Tien(3, pidSpeed);
+        motor_Tien(4, pidSpeed);
+      }
+      else {
+        motor_Tien(1, abs(pidSpeed));
+        motor_Tien(2, abs(pidSpeed));
+        motor_Lui(3, abs(pidSpeed));
+        motor_Lui(4, abs(pidSpeed));
+      }
+       if((millis() - pidTime) > 30){
+          pidSpeed = myPID.Calculate(mySetp, encoderPos);
+          pidTime = millis();
+       }  
+   }   
+}
+
+void leftAuto(){
+  mySetp = 260;
+  pidTime = millis();
+  runTime = millis();
+  double pidSpeed = 0;
+  encoderPos = 0;
+  while ((millis() - runTime) < 20000)
+   {
+      if(pidSpeed > 0){
+        motor_Tien(1, pidSpeed);
+        motor_Lui(2, pidSpeed);
+        motor_Tien(3, pidSpeed);
+        motor_Lui(4, pidSpeed);
+      }
+      else {
+        motor_Lui(1, abs(pidSpeed));
+        motor_Tien(2, abs(pidSpeed));
+        motor_Lui(3, abs(pidSpeed));
+        motor_Tien(4, abs(pidSpeed));
+      }
+       if((millis() - pidTime) > 30){
+          pidSpeed = myPID.Calculate(mySetp, encoderPos);
+          pidTime = millis();
+       }  
+   }   
+}
+
+void rightAuto(){
+  mySetp = 260;
+  pidTime = millis();
+  runTime = millis();
+  double pidSpeed = 0;
+  encoderPos = 0;
+  while ((millis() - runTime) < 20000)
+   {
+      if(pidSpeed > 0){
+        motor_Lui(1, pidSpeed);
+        motor_Tien(2, pidSpeed);
+        motor_Lui(3, pidSpeed);
+        motor_Tien(4, pidSpeed);
+      }
+      else {
+        motor_Tien(1, abs(pidSpeed));
+        motor_Lui(2, abs(pidSpeed));
+        motor_Tien(3, abs(pidSpeed));
+        motor_Lui(4, abs(pidSpeed));
+      }
+       if((millis() - pidTime) > 30){
+          pidSpeed = myPID.Calculate(mySetp, encoderPos);
+          pidTime = millis();
+       }  
+   }   
+}
+
+void R90Auto(){
+  mySetp = 175;
+  pidTime = millis();
+  runTime = millis();
+  double pidSpeed = 0;
+  encoderPos = 0;
+  while ((millis() - runTime) < 20000)
+   {
+      if(pidSpeed > 0){
+        motor_Lui(1, pidSpeed);
+        motor_Lui(2, pidSpeed);
+        motor_Lui(3, pidSpeed);
+        motor_Lui(4, pidSpeed);
+      }
+      else {
+        motor_Tien(1, abs(pidSpeed));
+        motor_Tien(2, abs(pidSpeed));
+        motor_Tien(3, abs(pidSpeed));
+        motor_Tien(4, abs(pidSpeed));
+      }
+       if((millis() - pidTime) > 30){
+          pidSpeed = myPID.Calculate(mySetp, encoderPos);
+          pidTime = millis();
+       }  
+   }   
+}
+
+void L90Auto(){
+  mySetp = 175;
+  pidTime = millis();
+  runTime = millis();
+  double pidSpeed = 0;
+  encoderPos = 0;
+  while ((millis() - runTime) < 20000)
+   {
+      if(pidSpeed > 0){
+        motor_Tien(1, pidSpeed);
+        motor_Tien(2, pidSpeed);
+        motor_Tien(3, pidSpeed);
+        motor_Tien(4, pidSpeed);
+      }
+      else {
+        motor_Lui(1, abs(pidSpeed));
+        motor_Lui(2, abs(pidSpeed));
+        motor_Lui(3, abs(pidSpeed));
+        motor_Lui(4, abs(pidSpeed));
+      }
+       if((millis() - pidTime) > 30){
+          pidSpeed = myPID.Calculate(mySetp, encoderPos);
+          pidTime = millis();
+       }  
+   }   
+}
+
+void A180Auto(){
+  mySetp = 360;
+  pidTime = millis();
+  runTime = millis();
+  double pidSpeed = 0;
+  encoderPos = 0;
+  while ((millis() - runTime) < 20000)
+   {
+      if(pidSpeed > 0){
+        motor_Lui(1, pidSpeed);
+        motor_Lui(2, pidSpeed);
+        motor_Lui(3, pidSpeed);
+        motor_Lui(4, pidSpeed);
+      }
+      else {
+        motor_Tien(1, abs(pidSpeed));
+        motor_Tien(2, abs(pidSpeed));
+        motor_Tien(3, abs(pidSpeed));
+        motor_Tien(4, abs(pidSpeed));
+      }
+       if((millis() - pidTime) > 30){
+          pidSpeed = myPID.Calculate(mySetp, encoderPos);
+          pidTime = millis();
+       }  
+   }   
 }
 
 void encoder()  {                                     
- if (digitalRead(encodPinB1))    {
+ if ((digitalRead(encodPinB1) == 1))    {
    encoderPos++;   
    encoderPosR++;
    encoderPosL++;
    encoderPosA++;
  }      
  else{
-   encoderPos++;   
-   encoderPosR++;
-   encoderPosL++;
-   encoderPosA++;  
+   encoderPos--;   
+   encoderPosR--;
+   encoderPosL--;
+   encoderPosA--;  
  }     
 }
